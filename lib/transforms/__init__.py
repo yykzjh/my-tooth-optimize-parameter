@@ -9,12 +9,29 @@ from .random_rescale import RandomRescale
 from .random_rotate import RandomRotation
 from .random_shift import RandomShift
 from .gaussian_noise import GaussianNoise
+from .to_tensor import ToTensor
+from .normalize import Normalize
 
-functions = ['elastic_deform', 'gaussian_noise', 'random_crop', 'random_flip', 'random_rescale',
-             'random_rotate', 'random_shift']
 
 
-class RandomChoice(object):
+class ComposeTransforms(object):
+    """
+    串行执行一系列transforms
+    """
+    def __init__(self, transforms):
+        self.transforms = transforms
+
+    def __call__(self, img, label):
+        for transform in self.transforms:
+            img, label = transform(img, label)
+        return img, label
+
+
+
+
+
+
+class RandomAugmentChoice(object):
     """
     choose a random tranform from list an apply
     transforms: tranforms to apply
@@ -35,7 +52,7 @@ class RandomChoice(object):
         return t(img_tensor, label)
 
 
-class ComposeTransforms(object):
+class ComposeAugments(object):
     """
     Composes several transforms together.
     """

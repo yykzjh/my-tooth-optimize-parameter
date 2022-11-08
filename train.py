@@ -1,14 +1,16 @@
 import os
 import nni
-
-
+import glob
+import shutil
+import numpy as np
 from collections import Counter
 import matplotlib.pyplot as plt
 from nibabel.viewers import OrthoSlicer3D
 
 import torch
 from torch.utils.data import Dataset
-from lib import utils, models, losses, augments
+
+from lib import utils, models, losses, transforms
 
 
 
@@ -39,9 +41,6 @@ params = {
 
     "clip_lower_bound": 30,  # clip的下边界百分位点，图像中每个体素的数值按照从大到小排序，其中小于30%分位点的数值都等于30%分位数
     "clip_upper_bound": 99.9,  # clip的上边界百分位点，图像中每个体素的数值按照从大到小排序，其中大于100%分位点的数值都等于100%分位数
-
-    "normalization": "full_volume_mean",  # 采用的归一化方法，可选["full_volume_mean","mean","max","max_min"]。其中"full_volume_mean"
-    # 采用的是整个图像计算出的均值和标准差,"mean"采用的是图像前景计算出的均值和标准差,"max"是将图像所有数值除最大值,"max_min"采用的是Min-Max归一化
 
     "samples_train": 2048,  # 作为实际的训练集采样的子卷数量，也就是在原训练集上随机裁剪的子图像数量
 
@@ -84,6 +83,10 @@ params = {
     # 随机位移参数
     "open_random_shift": True,  # 是否开启随机位移数据增强
     "random_shift_max_percentage": 0.3,  # 在图像的三个维度(D,H,W)都进行随机位移，位移量的范围为(-0.3×(D、H、W),0.3×(D、H、W))
+
+    # 标准化均值
+    "normalize_mean": 0.5,
+    "normalize_std": 1.5,
 
 """
 ************************************************************************************************************************
@@ -175,87 +178,77 @@ class ToothDataset(Dataset):
         self.root = params["dataset_path"]
         self.train_path = os.path.join(self.root, "train")
         self.val_path = os.path.join(self.root, "val")
-        self.threshold = params["crop_threshold"]
-        self.normalization = params["normalization"]
         self.augmentations = [
             params["open_elastic_transform"], params["open_gaussian_noise"], params["open_random_flip"],
             params["open_random_rescale"], params["open_random_rotate"], params["open_random_shift"]]
-        self.list = []
-        self.samples_train = params["samples_train"]
-
-        # 定义数据增强
-        all_transforms = [
-            augments.ElasticTransform(alpha=params["elastic_transform_alpha"], sigma=params["elastic_transform_sigma"]),
-            augments.GaussianNoise(mean=params["gaussian_noise_mean"], std=params["gaussian_noise_std"]),
-            augments.RandomFlip(),
-            augments.RandomRescale(min_percentage=params["random_rescale_min_percentage"],
-                                   max_percentage=params["random_rescale_max_percentage"]),
-            augments.RandomRotation(min_angle=params["random_rotate_min_angle"],
-                                    max_angle=params["random_rotate_max_angle"]),
-            augments.RandomShift(max_percentage=params["random_shift_max_percentage"])
-        ],
-        # 获取实际要进行的数据增强
-        practice_transforms = [all_transforms[i] for i, is_open in enumerate(self.augmentations) if is_open]
-        # 定义数据增强方式
-        if params["augmentation_method"] == "Choice":
-            self.transform = augments.RandomChoice(
-                practice_transforms,
-                p=params["augmentation_probability"]
-            )
-        elif params["augmentation_method"] == "Compose":
-            self.transform = augments.ComposeTransforms(
-                practice_transforms,
-                p=params["augmentation_probability"]
-            )
-
-
-        # 定义子卷根目录
-        sub_volume_root_path = os.path.join(
-            self.root,
-            "sub_volumes",
-            self.mode +
-            '-vol_' + str(config.crop_size[0]) + 'x' + str(config.crop_size[1]) + 'x' + str(config.crop_size[2]) +
-            "-samples_" + str(self.samples)
-        )
-        # 定义子卷图像保存地址
-        self.sub_vol_path = os.path.join(sub_volume_root_path, "generated")
-        # 定义子卷图像路径保存的txt地址
-        self.list_txt_path = os.path.join(sub_volume_root_path, "list.txt")
-
-        # 直接加载之前生成的数据
-        if load:
-            self.list = utils.load_list(self.list_txt_path)
-            return
-
-        # 创建子卷根目录
-        utils.make_dirs(sub_volume_root_path)
-        # 创建子卷图像保存地址
-        utils.make_dirs(self.sub_vol_path)
+        self.sub_volume_root_dir = os.path.join(self.root, "sub_volumes")
+        self.data = []
+        self.transform = None
 
         # 分类创建子卷数据集
         if self.mode == 'train':
+            # 定义数据增强
+            all_augments = [
+                 transforms.ElasticTransform(alpha=params["elastic_transform_alpha"],
+                                             sigma=params["elastic_transform_sigma"]),
+                 transforms.GaussianNoise(mean=params["gaussian_noise_mean"],
+                                          std=params["gaussian_noise_std"]),
+                 transforms.RandomFlip(),
+                 transforms.RandomRescale(min_percentage=params["random_rescale_min_percentage"],
+                                          max_percentage=params["random_rescale_max_percentage"]),
+                 transforms.RandomRotation(min_angle=params["random_rotate_min_angle"],
+                                           max_angle=params["random_rotate_max_angle"]),
+                 transforms.RandomShift(max_percentage=params["random_shift_max_percentage"])
+            ]
+            # 获取实际要进行的数据增强
+            practice_augments = [all_augments[i] for i, is_open in enumerate(self.augmentations) if is_open]
+            # 定义数据增强方式
+            if params["augmentation_method"] == "Choice":
+                self.train_transforms = transforms.ComposeTransforms([
+                    transforms.RandomAugmentChoice(practice_augments, p=params["augmentation_probability"]),
+                    transforms.ToTensor(),
+                    transforms.Normalize(params["normalize_mean"], params["normalize_std"])
+                ])
+            elif params["augmentation_method"] == "Compose":
+                self.train_transforms = transforms.ComposeTransforms([
+                    transforms.ComposeAugments(practice_augments, p=params["augmentation_probability"]),
+                    transforms.ToTensor(),
+                    transforms.Normalize(params["normalize_mean"], params["normalize_std"])
+                ])
+
+            # 定义子卷训练集目录
+            self.sub_volume_train_dir = os.path.join(self.sub_volume_root_dir, "train")
+            # 定义子卷原图像存储目录
+            self.sub_volume_images_dir = os.path.join(self.sub_volume_train_dir, "images")
+            # 定义子卷标注图像存储目录
+            self.sub_volume_labels_dir = os.path.join(self.sub_volume_train_dir, "labels")
+
+            # 创建子卷训练集目录
+            utils.make_dirs(self.sub_volume_train_dir)
+            # 创建子卷原图像存储目录
+            utils.make_dirs(self.sub_volume_images_dir)
+            # 创建子卷标注图像存储目录
+            utils.make_dirs(self.sub_volume_labels_dir)
+
             images_path_list = sorted(glob.glob(os.path.join(self.train_path, "images", "*.nrrd")))
             labels_path_list = sorted(glob.glob(os.path.join(self.train_path, "labels", "*.nrrd")))
 
-            self.list = create_sub_volumes(images_path_list, labels_path_list, samples=self.samples, sub_vol_path=self.sub_vol_path)
+            self.data = utils.create_sub_volumes(images_path_list, labels_path_list, params["samples_train"],
+                                                 params["resample_spacing"], params["clip_lower_bound"],
+                                                 params["clip_upper_bound"], params["crop_size"],
+                                                 params["crop_threshold"], self.sub_volume_train_dir)
 
         elif self.mode == 'val':
+            self.val_transforms = transforms.ComposeTransforms([
+                transforms.ToTensor(),
+                transforms.Normalize(params["normalize_mean"], params["normalize_std"])
+            ])
             images_path_list = sorted(glob.glob(os.path.join(self.val_path, "images", "*.nrrd")))
             labels_path_list = sorted(glob.glob(os.path.join(self.val_path, "labels", "*.nrrd")))
 
-            self.list = create_sub_volumes(images_path_list, labels_path_list, samples=self.samples, sub_vol_path=self.sub_vol_path)
+            self.data = create_sub_volumes(images_path_list, labels_path_list, samples=self.samples, sub_vol_path=self.sub_vol_path)
 
-            self.full_volume = get_viz_set(images_path_list, labels_path_list, image_index=0)
 
-        elif self.mode == 'viz':
-            images_path_list = sorted(glob.glob(os.path.join(self.val_path, "images", "*.nrrd")))
-            labels_path_list = sorted(glob.glob(os.path.join(self.val_path, "labels", "*.nrrd")))
-
-            self.full_volume = get_viz_set(images_path_list, labels_path_list, image_index=0)
-            self.list = []
-
-        # 保存所有子卷图像路径到txt文件
-        utils.save_list(self.list_txt_path, self.list)
 
 
     def __len__(self):
@@ -266,12 +259,13 @@ class ToothDataset(Dataset):
         image_path, label_path = self.list[index]
         image, label = np.load(image_path), np.load(label_path)
 
-        if self.mode == 'train' and self.augmentation:
-            augmented_image, augmented_label = self.transform(image, label)
+        if self.mode == 'train':
+            transform_image, transform_label = self.train_transforms(image, label)
+            return torch.FloatTensor(transform_image).unsqueeze(0), torch.FloatTensor(transform_label)
 
-            return torch.FloatTensor(augmented_image.copy()).unsqueeze(0), torch.FloatTensor(augmented_label.copy())
-
-        return torch.FloatTensor(image).unsqueeze(0), torch.FloatTensor(label)
+        else:
+            transform_image, transform_label = self.val_transforms(image, label)
+            return torch.FloatTensor(transform_image).unsqueeze(0), torch.FloatTensor(transform_label)
 
 
 
