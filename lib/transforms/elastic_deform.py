@@ -82,10 +82,7 @@ class ElasticTransform(object):
         self.method = method
 
     def __call__(self, img_numpy, label=None):
-        min_val = img_numpy.min()
-        img_numpy -= min_val
         img_numpy, label = elastic_transform_3d(img_numpy, label, self.alpha, self.sigma, self.c_val, self.method)
-        img_numpy += min_val
         return img_numpy, label
 
 

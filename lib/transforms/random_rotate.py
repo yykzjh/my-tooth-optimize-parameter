@@ -39,8 +39,5 @@ class RandomRotation(object):
             img_numpy (numpy): rotated img.
             label (numpy): rotated Label segmentation map.
         """
-        min_val = img_numpy.min()
-        img_numpy -= min_val
         img_numpy, label = random_rotate3D(img_numpy, label, self.min_angle, self.max_angle)
-        img_numpy += min_val
         return img_numpy, label

@@ -110,6 +110,40 @@ def preprocess_val_dataset(images_path_list, labels_path_list, resample_spacing,
 
        Returns:
     """
+    # 获取图像数量
+    image_num = len(images_path_list)
+    assert image_num != 0, "原始数据集为空！"
+    assert len(images_path_list) == len(labels_path_list), "原始数据集中原图像数量和标注图像数量不一致！"
+
+    subvolume_list = []
+    # 循环读取所有图像
+    for i in range(image_num):
+        # 提取原图像文件名
+        image_file_name = os.path.splitext(os.path.basename(images_path_list[i]))[0]
+        # 提取标注图像文件名
+        label_file_name = os.path.splitext(os.path.basename(labels_path_list[i]))[0]
+        # 原图像文件名要和标注图像文件名一致
+        assert image_file_name == label_file_name, "原图像文件名和标注图像文件名不一样！"
+
+        # 加载并预处理原图图像
+        image_tensor = load_image_or_label(images_path_list[i], resample_spacing, clip_lower_bound,
+                                           clip_upper_bound, type="image")
+        # 加载并预处理标注图像
+        label_tensor = load_image_or_label(labels_path_list[i], resample_spacing, clip_lower_bound,
+                                           clip_upper_bound, type="label")
+
+        # 存储原图图像
+        image_filename = image_file_name + ".npy"
+        image_path = os.path.join(sub_volume_dir, "images", image_filename)
+        np.save(image_path, image_tensor)
+        # 存储标注图像
+        label_filename = label_file_name + "_seg.npy"
+        label_path = os.path.join(sub_volume_dir, "labels", label_filename)
+        np.save(label_path, label_tensor)
+        # 记录子卷的路径
+        subvolume_list.append((image_path, label_path))
+
+    return subvolume_list
 
 
 

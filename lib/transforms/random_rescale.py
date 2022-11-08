@@ -30,8 +30,5 @@ class RandomRescale(object):
         self.max_percentage = max_percentage
 
     def __call__(self, img_numpy, label=None):
-        min_val = img_numpy.min()
-        img_numpy -= min_val
         img_numpy, label = random_rescale(img_numpy, label, self.min_percentage, self.max_percentage)
-        img_numpy += min_val
         return img_numpy, label

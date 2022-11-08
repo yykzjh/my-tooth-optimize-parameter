@@ -33,8 +33,5 @@ class RandomShift(object):
         self.max_percentage = max_percentage
 
     def __call__(self, img_numpy, label=None):
-        min_val = img_numpy.min()
-        img_numpy -= min_val
         img_numpy, label = random_shift(img_numpy, label, self.max_percentage)
-        img_numpy += min_val
         return img_numpy, label

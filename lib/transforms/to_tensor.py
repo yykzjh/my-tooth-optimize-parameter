@@ -7,6 +7,7 @@
 @License  :   (C)Copyright 2022
 """
 import torch
+import numpy as np
 
 
 
@@ -28,7 +29,7 @@ class ToTensor(object):
         max_val, min_val = img_numpy.max(), img_numpy.min()
         # 将图像灰度值归一化到0~1
         img_numpy = (img_numpy - min_val) / (max_val - min_val)
-        return torch.FloatTensor(img_numpy), torch.FloatTensor(label)
+        return torch.FloatTensor(np.ascontiguousarray(img_numpy)), torch.FloatTensor(np.ascontiguousarray(label))
 
 
 
