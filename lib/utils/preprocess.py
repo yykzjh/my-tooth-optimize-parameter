@@ -204,7 +204,7 @@ def load_image_or_label(path, resample_spacing, clip_lower_bound, clip_upper_bou
         resample_spacing: 重采样的体素间距
         clip_lower_bound: 灰度值下界
         clip_upper_bound: 灰度值上界
-        type: 原图像或者标注图像
+        type: 原始图像、原图像标注图像
 
     Returns:
 
@@ -221,11 +221,11 @@ def load_image_or_label(path, resample_spacing, clip_lower_bound, clip_upper_bou
     img_np = resample_image_spacing(img_np, spacing, resample_spacing, order)
 
     # 直接返回tensor
-    if type == "label":
+    if type == "label" or type == "ori_image":
         return torch.from_numpy(img_np)
 
     # 数值上下界clip
-    img_np = percentile_clip(img_np, min_val=clip_lower_bound, max_val=clip_upper_bound)
+    img_np = absolute_value_clip(img_np, min_val=clip_lower_bound, max_val=clip_upper_bound)
 
     # 转换成tensor
     img_tensor = torch.from_numpy(img_np)
@@ -252,6 +252,8 @@ def load_label(path):
     # 读入 nrrd 文件
     data, options = nrrd.read(path)
     assert data.ndim == 3, "label图像维度出错"
+    # 修改数据类型
+    data = data.astype(int)
 
     # 初始化标记字典
     # 读取索引文件
@@ -307,7 +309,7 @@ def load_image(path):
     data, options = nrrd.read(path)
     assert data.ndim == 3, "图像维度出错"
     # 修改数据类型
-    data = data.astype(np.float64)
+    data = data.astype(int)
     # 获取体素间距
     spacing = [v[i] for i, v in enumerate(options["space directions"])]
 
@@ -332,19 +334,19 @@ def resample_image_spacing(data, old_spacing, new_spacing, order):
 
 
 
-def percentile_clip(img_numpy, min_val=0.1, max_val=99.8):
+def absolute_value_clip(img_numpy, min_val, max_val):
     """
-    Intensity normalization based on percentile
-    Clips the range based on the quarile values.
-    :param min_val: should be in the range [0,100]
-    :param max_val: should be in the range [0,100]
-    :return: intesity normalized image
-    """
-    low = np.percentile(img_numpy, min_val)
-    high = np.percentile(img_numpy, max_val)
+    绝对上下界数值clip
+    Args:
+        img_numpy: 原始图像
+        min_val: clip下界数值
+        max_val: clip上界数值
 
-    img_numpy[img_numpy < low] = low
-    img_numpy[img_numpy > high] = high
+    Returns:
+
+    """
+    img_numpy[img_numpy < min_val] = min_val
+    img_numpy[img_numpy > max_val] = max_val
     return img_numpy
 
 

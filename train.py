@@ -34,8 +34,8 @@ params = {
     "resample_spacing": [0.5, 0.5, 0.5],  # 重采样的体素间距。三个维度的值一般相等，可设为0.5(图像尺寸有[200,200,100]、[200,200,200]、
     # [160,160,160]),或者设为0.25(图像尺寸有[400,400,200]、[400,400,400]、[320,320,320])
 
-    "clip_lower_bound": 30,  # clip的下边界百分位点，图像中每个体素的数值按照从大到小排序，其中小于30%分位点的数值都等于30%分位数
-    "clip_upper_bound": 99.9,  # clip的上边界百分位点，图像中每个体素的数值按照从大到小排序，其中大于100%分位点的数值都等于100%分位数
+    "clip_lower_bound": -3559,  # clip的下边界数值
+    "clip_upper_bound": 14913,  # clip的上边界数值
 
     "samples_train": 256,  # 作为实际的训练集采样的子卷数量，也就是在原训练集上随机裁剪的子图像数量
 
@@ -77,8 +77,8 @@ params = {
     "random_shift_max_percentage": 0.3,  # 在图像的三个维度(D,H,W)都进行随机位移，位移量的范围为(-0.3×(D、H、W),0.3×(D、H、W))
 
     # 标准化均值
-    "normalize_mean": 0.5,
-    "normalize_std": 1.5,
+    "normalize_mean": 0.17375023663043976,
+    "normalize_std": 0.053983770310878754,
 
     # —————————————————————————————————————————————    数据读取     ——————————————————————————————————————————————————————
 
@@ -305,8 +305,7 @@ if __name__ == '__main__':
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
 
     for images, labels in train_loader:
-        OrthoSlicer3D(images[0, 0, :, :, :].numpy()).show()
-        OrthoSlicer3D(labels[0, :, :, :].numpy()).show()
+        print(images.mean(), images.std())
 
 
 
