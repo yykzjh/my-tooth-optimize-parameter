@@ -183,13 +183,15 @@ class ToothDataset(Dataset):
             if params["augmentation_method"] == "Choice":
                 self.train_transforms = transforms.ComposeTransforms([
                     transforms.RandomAugmentChoice(practice_augments, p=params["augmentation_probability"]),
-                    transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
+                    # transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
+                    transforms.ToTensor(),
                     transforms.Normalize(params["normalize_mean"], params["normalize_std"])
                 ])
             elif params["augmentation_method"] == "Compose":
                 self.train_transforms = transforms.ComposeTransforms([
                     transforms.ComposeAugments(practice_augments, p=params["augmentation_probability"]),
-                    transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
+                    # transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
+                    transforms.ToTensor(),
                     transforms.Normalize(params["normalize_mean"], params["normalize_std"])
                 ])
 
@@ -220,7 +222,8 @@ class ToothDataset(Dataset):
         elif self.mode == 'val':
             # 定义验证集数据增强
             self.val_transforms = transforms.ComposeTransforms([
-                transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
+                # transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
+                transforms.ToTensor(),
                 transforms.Normalize(params["normalize_mean"], params["normalize_std"])
             ])
 
