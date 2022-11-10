@@ -34,7 +34,7 @@ params = {
     "resample_spacing": [0.5, 0.5, 0.5],  # 重采样的体素间距。三个维度的值一般相等，可设为0.5(图像尺寸有[200,200,100]、[200,200,200]、
     # [160,160,160]),或者设为0.25(图像尺寸有[400,400,200]、[400,400,400]、[320,320,320])
 
-    "clip_lower_bound": -3559,  # clip的下边界数值
+    "clip_lower_bound": -3566,  # clip的下边界数值
     "clip_upper_bound": 14913,  # clip的上边界数值
 
     "samples_train": 256,  # 作为实际的训练集采样的子卷数量，也就是在原训练集上随机裁剪的子图像数量
@@ -77,7 +77,7 @@ params = {
     "random_shift_max_percentage": 0.3,  # 在图像的三个维度(D,H,W)都进行随机位移，位移量的范围为(-0.3×(D、H、W),0.3×(D、H、W))
 
     # 标准化均值
-    "normalize_mean": 0.17375023663043976,
+    "normalize_mean": 0.17375025153160095,
     "normalize_std": 0.053983770310878754,
 
     # —————————————————————————————————————————————    数据读取     ——————————————————————————————————————————————————————
@@ -113,7 +113,11 @@ params = {
     "loss_function_name": "DiceLoss",  # 损失函数名称，可选["DiceLoss","CrossEntropyLoss","WeightedCrossEntropyLoss",
     # "MSELoss","SmoothL1Loss","L1Loss","WeightedSmoothL1Loss","BCEDiceLoss","BCEWithLogitsLoss"]
 
-    "class_weight": [0.1, 0.3, 3] + [1.0] * 32,  # 各类别计算损失值的加权权重
+    "class_weight": [0.00002066, 0.00022885, 0.10644896, 0.02451709, 0.03155127, 0.02142642, 0.02350483, 0.02480525,
+                     0.01125384, 0.01206108, 0.07426875, 0.02583742, 0.03059388, 0.02485595, 0.02466779, 0.02529981,
+                     0.01197175, 0.01272877, 0.16020726, 0.05647514, 0.0285633, 0.01808694, 0.02124704, 0.02175892,
+                     0.01802092, 0.01563035, 0., 0.0555509, 0.02747846, 0.01756969, 0.02183707, 0.01934677, 0.01848419,
+                     0.01370064, 0.],  # 各类别计算损失值的加权权重
 
     "sigmoid_normalization": False,  # 对网络输出的各通道进行归一化的方式,True是对各元素进行sigmoid,False是对所有通道进行softmax
 
@@ -179,13 +183,13 @@ class ToothDataset(Dataset):
             if params["augmentation_method"] == "Choice":
                 self.train_transforms = transforms.ComposeTransforms([
                     transforms.RandomAugmentChoice(practice_augments, p=params["augmentation_probability"]),
-                    transforms.ToTensor(),
+                    transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
                     transforms.Normalize(params["normalize_mean"], params["normalize_std"])
                 ])
             elif params["augmentation_method"] == "Compose":
                 self.train_transforms = transforms.ComposeTransforms([
                     transforms.ComposeAugments(practice_augments, p=params["augmentation_probability"]),
-                    transforms.ToTensor(),
+                    transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
                     transforms.Normalize(params["normalize_mean"], params["normalize_std"])
                 ])
 
@@ -216,7 +220,7 @@ class ToothDataset(Dataset):
         elif self.mode == 'val':
             # 定义验证集数据增强
             self.val_transforms = transforms.ComposeTransforms([
-                transforms.ToTensor(),
+                transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
                 transforms.Normalize(params["normalize_mean"], params["normalize_std"])
             ])
 

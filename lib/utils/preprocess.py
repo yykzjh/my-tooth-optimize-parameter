@@ -231,7 +231,7 @@ def load_image_or_label(path, resample_spacing, clip_lower_bound, clip_upper_bou
     img_tensor = torch.from_numpy(img_np)
 
     # 最小灰度值移动到0
-    img_tensor -= img_tensor.min()
+    img_tensor -= clip_lower_bound
 
     return img_tensor
 

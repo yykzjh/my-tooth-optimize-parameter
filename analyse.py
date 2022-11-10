@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+np.set_printoptions(suppress=True)
 import scipy
 import nrrd
 import glob
@@ -291,10 +292,15 @@ def calc_clip_bound(dataset_path=r"./datasets/src_10"):
     foreground_values = torch.sort(foreground_values)[0]
     # tensor转换成numpy.ndarray
     foreground_values_np = foreground_values.numpy()
+    all_values_np = all_values.numpy()
     # 画直方图
     plt.hist(foreground_values_np, bins=int(foreground_values_np.max() - foreground_values_np.min() + 1))
     plt.axvline(foreground_values_np[int(0.004 * len(foreground_values_np))], color="r")
     plt.axvline(foreground_values_np[int(0.996 * len(foreground_values_np))], color="r")
+    plt.show()
+
+
+    plt.hist(all_values_np, bins=int(all_values_np.max() - all_values_np.min() + 1))
     plt.show()
 
     # 输出clip的上下边界的范围,lower_bound:[all_min_val, foreground_min_val], upper_bound:[foreground_max_val, all_max_val]
@@ -304,7 +310,7 @@ def calc_clip_bound(dataset_path=r"./datasets/src_10"):
 
 
 
-def calc_mean_and_std(dataset_path=r"./datasets/src_10"):
+def calc_mean_and_std(dataset_path=r"./datasets/src_10", clip_lower_bound=-344, clip_upper_bound=2477):
     # 加载数据集中所有原图像
     images_path = glob.glob(os.path.join(dataset_path, "*", "images", '*.nrrd'))
     # 加载数据集中所有标注图像
@@ -331,29 +337,22 @@ def calc_mean_and_std(dataset_path=r"./datasets/src_10"):
         # 累计前景灰度值
         foreground_values = torch.cat([foreground_values, image[label.nonzero(as_tuple=True)]], dim=0)
 
-    # 分别获取所有灰度值的最大值和最小值
-    all_min_val, all_max_val = all_values.min(), all_values.max()
-    # 分别获取前景灰度值的最大值和最小值
-    foreground_min_val, foreground_max_val = foreground_values.min(), foreground_values.max()
-    # 归一化数值
-    all_values = (all_values - all_min_val) / (all_max_val - all_min_val)
-    foreground_values = (foreground_values - foreground_min_val) / (foreground_max_val - foreground_min_val)
 
-    # 从小到大排序
-    foreground_values = torch.sort(foreground_values)[0]
-    # 转换格式
-    foreground_values_np = foreground_values.numpy()
-    # 获取两个阈值
-    th_lower = foreground_values_np[int(0.004 * len(foreground_values_np))]
-    th_upper = foreground_values_np[int(0.994 * len(foreground_values_np))]
-    # # clip前景灰度值
-    foreground_values_np[foreground_values_np < th_lower] = th_lower
-    foreground_values_np[foreground_values_np > th_upper] = th_upper
+
+    # 对所有灰度值进行clip
+    all_values[all_values < clip_lower_bound] = clip_lower_bound
+    all_values[all_values > clip_upper_bound] = clip_upper_bound
+    # 对前景灰度值进行clip
+    foreground_values[foreground_values < clip_lower_bound] = clip_lower_bound
+    foreground_values[foreground_values > clip_upper_bound] = clip_upper_bound
+    # 归一化数值
+    all_values = (all_values - clip_lower_bound) / (clip_upper_bound - clip_lower_bound)
+    foreground_values = (foreground_values - clip_lower_bound) / (clip_upper_bound - clip_lower_bound)
 
     # 计算所有灰度值的均值和标准差
     all_mean, all_std = all_values.mean(), all_values.std()
     # 计算前景灰度值的均值和标准差
-    foreground_mean, foreground_std = foreground_values_np.mean(), foreground_values_np.std()
+    foreground_mean, foreground_std = foreground_values.mean(), foreground_values.std()
 
     print("均值的取值范围为：[{}, {}]".format(all_mean, foreground_mean))
     print("标准差的取值范围为：[{}, {}]".format(foreground_std, all_std))
@@ -388,6 +387,7 @@ def calc_class_proportion(dataset_path=r"./datasets/src_10"):
             class_statistic_dict[class_index] += indexes_cnt[i].item()  # 类别体素数累加
     # 对统计字典按键排序
     class_statistic_dict = dict(sorted(class_statistic_dict.items(), key=lambda x: x[0]))
+    print(class_statistic_dict)
 
     # 初始化权重向量
     weights = np.zeros((35, ))
@@ -420,10 +420,10 @@ if __name__ == '__main__':
     # calc_clip_bound()
 
     # 计算数据集的总均值、总标准差和前景均值、前景标准差
-    # calc_mean_and_std()
+    calc_mean_and_std()
 
     # 计算各类别的加权权重数组
-    calc_class_proportion()
+    # calc_class_proportion()
 
 
 
