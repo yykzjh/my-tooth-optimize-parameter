@@ -9,9 +9,10 @@ from nibabel.viewers import OrthoSlicer3D
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
-from lib import utils, transforms
+from lib import utils, transforms, models
 
 
 
@@ -88,7 +89,7 @@ params = {
 
     "batch_size": 4,  # batch_size大小
 
-    "num_workers": 4,  # num_workers大小
+    "num_workers": 2,  # num_workers大小
 
     # —————————————————————————————————————————————    网络模型     ——————————————————————————————————————————————————————
 
@@ -100,13 +101,36 @@ params = {
 
     # ——————————————————————————————————————————————    优化器     ——————————————————————————————————————————————————————
 
-    "optimizer_name": "adam",  # 优化器名称，可选["adam","sgd","rmsprop"]
+    "optimizer_name": "Adam",  # 优化器名称，可选["SGD", "Adagrad", "RMSprop", "Adam", "Adamax", "Adadelta", "SparseAdam"]
 
     "learning_rate": 0.001,  # 学习率
 
     "weight_decay": 0.00001,  # 权重衰减系数,即更新网络参数时的L2正则化项的系数
 
-    "momentum": 0.5,  # 动量大小
+    "momentum": 0.9,  # 动量大小
+
+    # ———————————————————————————————————————————    学习率调度器     —————————————————————————————————————————————————————
+
+    "lr_scheduler_name": "OneCycleLR",  # 学习率调度器名称，可选["ExponentialLR", "StepLR", "MultiStepLR",
+    # "CosineAnnealingLR", "CosineAnnealingWarmRestarts", "OneCycleLR", "ReduceLROnPlateau"]
+
+    "gamma": 0.9,  # 学习率衰减系数
+
+    "step_size": 5,  # StepLR的学习率衰减步长
+
+    "milestones": [15, 22, 27, 30, 33, 36, 38],  # MultiStepLR的学习率衰减节点列表
+
+    "T_max": 5,  # CosineAnnealingLR的半周期
+
+    "T_0": 4,  # CosineAnnealingWarmRestarts的周期
+
+    "T_mult": 2,  # CosineAnnealingWarmRestarts的周期放大倍数
+
+    "mode": "min",  # ReduceLROnPlateau的衡量指标变化方向
+
+    "patience": 5,  # ReduceLROnPlateau的衡量指标可以停止优化的最长epoch
+
+    "factor": 0.1,  # ReduceLROnPlateau的衰减系数
 
     # ————————————————————————————————————————————    损失函数     ———————————————————————————————————————————————————————
 
@@ -128,7 +152,7 @@ params = {
     "runs_dir": r"./runs",  # 运行时产生的各类文件的存储根目录
 
     "start_epoch": 0,  # 训练时的起始epoch
-    "end_epoch": 50,  # 训练时的结束epoch
+    "end_epoch": 40,  # 训练时的结束epoch
 
     "best_dice": 0.60,  # 保存检查点的初始条件
 
@@ -183,15 +207,15 @@ class ToothDataset(Dataset):
             if params["augmentation_method"] == "Choice":
                 self.train_transforms = transforms.ComposeTransforms([
                     transforms.RandomAugmentChoice(practice_augments, p=params["augmentation_probability"]),
-                    # transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
-                    transforms.ToTensor(),
+                    transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
+                    # transforms.ToTensor(),
                     transforms.Normalize(params["normalize_mean"], params["normalize_std"])
                 ])
             elif params["augmentation_method"] == "Compose":
                 self.train_transforms = transforms.ComposeTransforms([
                     transforms.ComposeAugments(practice_augments, p=params["augmentation_probability"]),
-                    # transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
-                    transforms.ToTensor(),
+                    transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
+                    # transforms.ToTensor(),
                     transforms.Normalize(params["normalize_mean"], params["normalize_std"])
                 ])
 
@@ -222,8 +246,8 @@ class ToothDataset(Dataset):
         elif self.mode == 'val':
             # 定义验证集数据增强
             self.val_transforms = transforms.ComposeTransforms([
-                # transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
-                transforms.ToTensor(),
+                transforms.ToTensor(params["clip_lower_bound"], params["clip_upper_bound"]),
+                # transforms.ToTensor(),
                 transforms.Normalize(params["normalize_mean"], params["normalize_std"])
             ])
 
@@ -302,6 +326,7 @@ if __name__ == '__main__':
     # 随机种子、卷积算法优化
     utils.reproducibility(params["seed"], params["cuda"], params["deterministic"], params["benchmark"])
 
+
     # 初始化数据集
     train_set = ToothDataset(mode="train")
     val_set = ToothDataset(mode="val")
@@ -311,8 +336,80 @@ if __name__ == '__main__':
                               num_workers=params["num_workers"], pin_memory=True)
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
 
+
     for images, labels in train_loader:
         print(images.mean(), images.std())
 
 
+    # 初始化网络模型
+    if params["model_name"] == 'DENSEVNET':
+        model = models.DenseVNet(in_channels=params["model_name"], classes=params["classes"])
 
+    else:
+        raise RuntimeError(f"{params['model_name']}是不支持的网络模型！")
+
+    # 随机初始化模型参数
+    model.apply(weight_init)
+
+
+    # 初始化优化器
+    if params["optimizer_name"] == "SGD":
+        optimizer = optim.SGD(model.parameters(), lr=params["learning_rate"], momentum=params["momentum"],
+                              weight_decay=params["weight_decay"])
+
+    elif params["optimizer_name"] == 'Adagrad':
+        optimizer = optim.Adagrad(model.parameters(), lr=params["learning_rate"], weight_decay=params["weight_decay"])
+
+    elif params["optimizer_name"] == "RMSprop":
+        optimizer = optim.RMSprop(model.parameters(), lr=params["learning_rate"], weight_decay=params["weight_decay"],
+                                  momentum=params["momentum"])
+
+    elif params["optimizer_name"] == "Adam":
+        optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"], weight_decay=params["weight_decay"])
+
+    elif params["optimizer_name"] == "Adamax":
+        optimizer = optim.Adamax(model.parameters(), lr=params["learning_rate"], weight_decay=params["weight_decay"])
+
+    elif params["optimizer_name"] == "Adadelta":
+        optimizer = optim.Adadelta(model.parameters(), lr=params["learning_rate"], weight_decay=params["weight_decay"])
+
+    elif params["optimizer_name"] == "SparseAdam":
+        optimizer = optim.SparseAdam(model.parameters(), lr=params["learning_rate"])
+
+    else:
+        raise RuntimeError(
+            f"{params['optimizer_name']}是不支持的优化器！")
+
+
+    # 初始化学习率调度器
+    if params["lr_scheduler_name"] == "ExponentialLR":
+        lr_scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=params["gamma"])
+
+    elif params["lr_scheduler_name"] == "StepLR":
+        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=params["step_size"], gamma=params["gamma"])
+
+    elif params["lr_scheduler_name"] == "MultiStepLR":
+        lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=params["milestones"], gamma=params["gamma"])
+
+    elif params["lr_scheduler_name"] == "CosineAnnealingLR":
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=params["T_max"])
+
+    elif params["lr_scheduler_name"] == "CosineAnnealingWarmRestarts":
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=params["T_0"],
+                                                                      T_mult=params["T_mult"])
+
+    elif params["lr_scheduler_name"] == "OneCycleLR":
+        lr_scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=params["learning_rate"],
+                                                     steps_per_epoch=len(train_loader), epochs=params["end_epoch"])
+
+    elif params["lr_scheduler_name"] == "ReduceLROnPlateau":
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode=params["mode"], factor=params["factor"],
+                                                            patience=params["patience"])
+
+    else:
+        raise RuntimeError(
+            f"{params['lr_scheduler_name']}是不支持的学习率调度器！")
+
+
+
+    print("complete!")
