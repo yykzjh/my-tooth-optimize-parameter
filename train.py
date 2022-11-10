@@ -343,7 +343,7 @@ if __name__ == '__main__':
 
     # 初始化网络模型
     if params["model_name"] == 'DENSEVNET':
-        model = models.DenseVNet(in_channels=params["model_name"], classes=params["classes"])
+        model = models.DenseVNet(in_channels=params["in_channels"], classes=params["classes"])
 
     else:
         raise RuntimeError(f"{params['model_name']}是不支持的网络模型！")
