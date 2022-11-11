@@ -111,7 +111,7 @@ params = {
 
     # ———————————————————————————————————————————    学习率调度器     —————————————————————————————————————————————————————
 
-    "lr_scheduler_name": "OneCycleLR",  # 学习率调度器名称，可选["ExponentialLR", "StepLR", "MultiStepLR",
+    "lr_scheduler_name": "ReduceLROnPlateau",  # 学习率调度器名称，可选["ExponentialLR", "StepLR", "MultiStepLR",
     # "CosineAnnealingLR", "CosineAnnealingWarmRestarts", "OneCycleLR", "ReduceLROnPlateau"]
 
     "gamma": 0.9,  # 学习率衰减系数
@@ -412,6 +412,8 @@ if __name__ == '__main__':
     if params["cuda"]:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         model = model.to(device)
+    else:
+        device = torch.device("cpu")
 
 
     # 初始化损失函数
@@ -423,5 +425,48 @@ if __name__ == '__main__':
             f"{params['loss_function_name']}是不支持的损失函数！")
 
 
+    # 开始训练
+    for epoch in range(params["start_epoch"], params["end_epoch"] + 1):
 
+        # 训练
+        model.train()
+        # 遍历数据集的batch
+        for batch_idx, (input_tensor, target) in enumerate(train_loader):
+            # 梯度清0
+            optimizer.zero_grad()
+            # 将输入图像和标注图像都移动到指定设备上
+            input_tensor, target = input_tensor.to(device), target.to(device)
+            # 前向传播
+            output =model(input_tensor)
+            # 计算损失值
+            dice_loss = loss_function(output, target)
+            # 反向传播计算各参数的梯度
+            dice_loss.backward()
+            # 更新参数
+            optimizer.step()
+
+        # 更新学习率
+        if isinstance(lr_scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+            lr_scheduler.step()
+
+
+
+
+        # 验证集测试
+        model.eval()
+        # 测试时不保存计算图的梯度中间结果，加快速度，节省空间
+        with torch.no_grad():
+            # 遍历验证集的batch，默认一个batch一张图像
+            for batch_idx, input_tuple in enumerate(val_loader):
+
+                    input_tensor, target = utils.prepare_input(input_tuple=input_tuple, device=self.device)
+                    input_tensor.requires_grad = False
+
+                    output = self.model(input_tensor)
+                    loss, per_ch_score = self.criterion(output, target)
+
+                    self.writer.update_scores(batch_idx, loss.item(), per_ch_score, 'val',
+                                              epoch * self.per_epoch_total_step + batch_idx)
+
+            self.writer.display_terminal(epoch, mode='val', summary=True)
 
