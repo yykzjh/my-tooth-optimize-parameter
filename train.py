@@ -145,13 +145,11 @@ params = {
 
     "sigmoid_normalization": False,  # 对网络输出的各通道进行归一化的方式,True是对各元素进行sigmoid,False是对所有通道进行softmax
 
-    "skip_index_after": None,  # 从某个索引的通道(类别)后不计算损失值
-
     # —————————————————————————————————————————————   训练相关参数   ——————————————————————————————————————————————————————
 
     "runs_dir": r"./runs",  # 运行时产生的各类文件的存储根目录
 
-    "start_epoch": 0,  # 训练时的起始epoch
+    "start_epoch": 1,  # 训练时的起始epoch
     "end_epoch": 40,  # 训练时的结束epoch
 
     "best_dice": 0.60,  # 保存检查点的初始条件
@@ -405,11 +403,25 @@ if __name__ == '__main__':
     elif params["lr_scheduler_name"] == "ReduceLROnPlateau":
         lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode=params["mode"], factor=params["factor"],
                                                             patience=params["patience"])
-
     else:
         raise RuntimeError(
             f"{params['lr_scheduler_name']}是不支持的学习率调度器！")
 
 
+    # 把模型放到GPU上
+    if params["cuda"]:
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        model = model.to(device)
 
-    print("complete!")
+
+    # 初始化损失函数
+    if params["loss_function_name"] == "DiceLoss":
+        pass
+
+    else:
+        raise RuntimeError(
+            f"{params['loss_function_name']}是不支持的损失函数！")
+
+
+
+
