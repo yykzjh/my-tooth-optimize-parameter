@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
-from lib import utils, transforms, models
+from lib import utils, transforms, models, losses
 
 
 
@@ -416,7 +416,7 @@ if __name__ == '__main__':
 
     # 初始化损失函数
     if params["loss_function_name"] == "DiceLoss":
-        pass
+        loss_function = losses.DiceLoss(params["classes"], weight=params["class_weight"], sigmoid_normalization=False)
 
     else:
         raise RuntimeError(
