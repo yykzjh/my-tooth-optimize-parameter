@@ -1,5 +1,4 @@
 import os
-import nni
 import glob
 import math
 import tqdm
@@ -13,6 +12,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
+
+import nni
+from nni.experiment import Experiment
 
 from lib import utils, transforms, models, losses
 
@@ -40,7 +42,7 @@ params = {
     "clip_lower_bound": -3566,  # clip的下边界数值
     "clip_upper_bound": 14913,  # clip的上边界数值
 
-    "samples_train": 256,  # 作为实际的训练集采样的子卷数量，也就是在原训练集上随机裁剪的子图像数量
+    "samples_train": 2048,  # 作为实际的训练集采样的子卷数量，也就是在原训练集上随机裁剪的子图像数量
 
     "crop_size": (160, 160, 96),  # 随机裁剪的尺寸。1、每个维度都是32的倍数这样在下采样时不会报错;2、11G的显存最大尺寸不能超过(192,192,160);
     # 3、要依据上面设置的"resample_spacing",在每个维度随机裁剪的尺寸不能超过图像重采样后的尺寸;
@@ -89,9 +91,9 @@ params = {
 
     "dataset_path": r"./datasets/src_10",  # 数据集路径
 
-    "batch_size": 4,  # batch_size大小
+    "batch_size": 1,  # batch_size大小
 
-    "num_workers": 2,  # num_workers大小
+    "num_workers": 1,  # num_workers大小
 
     # —————————————————————————————————————————————    网络模型     ——————————————————————————————————————————————————————
 
@@ -377,12 +379,10 @@ def split_forward(image, model):
 
 if __name__ == '__main__':
 
-    # # 获得下一组搜索空间中的参数
-    # tuner_params = nni.get_next_parameter()
-    # # 更新参数
-    # params.update(tuner_params)
-
-    params.update({"run_dir": r"./test"})
+    # 获得下一组搜索空间中的参数
+    tuner_params = nni.get_next_parameter()
+    # 更新参数
+    params.update(tuner_params)
 
 
     # 设置可用GPU
@@ -400,10 +400,6 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_set, batch_size=params["batch_size"], shuffle=True,
                               num_workers=params["num_workers"], pin_memory=True)
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=1, pin_memory=True)
-
-
-    for images, labels in train_loader:
-        print(images.mean(), images.std())
 
 
     # 初始化网络模型
@@ -485,7 +481,8 @@ if __name__ == '__main__':
 
     # 初始化损失函数
     if params["loss_function_name"] == "DiceLoss":
-        loss_function = losses.DiceLoss(params["classes"], weight=params["class_weight"], sigmoid_normalization=False)
+        loss_function = losses.DiceLoss(params["classes"], weight=torch.FloatTensor(params["class_weight"]).to(device),
+                                        sigmoid_normalization=False)
 
     else:
         raise RuntimeError(
@@ -509,7 +506,7 @@ if __name__ == '__main__':
             # 将输入图像和标注图像都移动到指定设备上
             input_tensor, target = input_tensor.to(device), target.to(device)
             # 前向传播
-            output =model(input_tensor)
+            output = model(input_tensor)
             # 计算损失值
             dice_loss = loss_function(output, target)
             # 将当前loss累加到loss总和
@@ -553,8 +550,15 @@ if __name__ == '__main__':
         # 更新在验证集上的最优dsc
         val_best_dsc = max(val_best_dsc, val_dsc_mean_per_epoch)
 
+        # 打印中间结果
+        print("epoch:[{:02d}/{:02d}]   mean_train_loss:{:.06f}   mean_val_dsc:{:.06f}   val_best_dsc:{:.06f}"
+              .format(epoch, params["end_epoch"], train_loss_mean_per_epoch, val_dsc_mean_per_epoch, val_best_dsc))
+
     # 将在验证集上最优的dsc作为最终上报指标
     nni.report_final_result(val_best_dsc)
+
+    # 实验结束后，防止程序避免Python解释器自动退出，可以继续使用网页控制台
+    input()
 
 
 

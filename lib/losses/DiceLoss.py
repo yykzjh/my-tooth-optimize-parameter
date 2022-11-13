@@ -59,8 +59,6 @@ class DiceLoss(nn.Module):
         # 计算每个通道(类别)的Dice系数,输出为(C, )
         per_channel_dice = self.dice(input, target)
 
-        # 将self.weight类别权重列表转换为Tensor，并且移动到相同设备上
-        self.weight = torch.FloatTensor(self.weight).to(per_channel_dice.device)
         # 对每个类别进行加权求和，因为self.weight.sum()约等于1，所以不用求平均直接求和
         weighted_dsc = torch.sum(per_channel_dice * self.weight)
 
