@@ -309,7 +309,6 @@ def calc_clip_bound(dataset_path=r"./datasets/src_10"):
 
 
 
-
 def calc_mean_and_std(dataset_path=r"./datasets/src_10", clip_lower_bound=-344, clip_upper_bound=2477):
     # 加载数据集中所有原图像
     images_path = glob.glob(os.path.join(dataset_path, "*", "images", '*.nrrd'))

@@ -19,13 +19,14 @@ class DiceLoss(nn.Module):
         else:
             self.normalization = nn.Softmax(dim=1)
 
-    def dice(self, input, target):
+    def dice(self, input, target, mode="extension"):
         """
         计算网络模型输出的预测图和标注图的Dice系数,每个通道(类别)都算出一个值
 
         Args:
             input: 网络模型输出的预测图
             target: 标注图
+            mode: DSC的计算方式，"standard":标准计算方式；"extension":扩展计算方式
 
         Returns:
 
@@ -41,7 +42,7 @@ class DiceLoss(nn.Module):
         # 对预测图进行Sigmiod或者Sofmax归一化操作
         input = self.normalization(input)
 
-        return compute_per_channel_dice(input, target, epsilon=1e-6, mode="extension")
+        return compute_per_channel_dice(input, target, epsilon=1e-6, mode=mode)
 
 
     def forward(self, input, target):

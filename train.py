@@ -1,6 +1,8 @@
 import os
 import nni
 import glob
+import math
+import tqdm
 import shutil
 import numpy as np
 from collections import Counter
@@ -147,7 +149,7 @@ params = {
 
     # —————————————————————————————————————————————   训练相关参数   ——————————————————————————————————————————————————————
 
-    "runs_dir": r"./runs",  # 运行时产生的各类文件的存储根目录
+    "run_dir": r"./runs",  # 运行时产生的各类文件的存储根目录
 
     "start_epoch": 1,  # 训练时的起始epoch
     "end_epoch": 40,  # 训练时的结束epoch
@@ -163,6 +165,7 @@ params = {
 
 
 
+
 class ToothDataset(Dataset):
     """
     读取nrrd牙齿数据集
@@ -174,6 +177,7 @@ class ToothDataset(Dataset):
             mode: train/val
         """
         self.mode = mode
+        self.run_dir = params["run_dir"]
         self.root = params["dataset_path"]
         self.train_path = os.path.join(self.root, "train")
         self.val_path = os.path.join(self.root, "val")
@@ -306,6 +310,66 @@ def weight_init(m):
 
 
 
+def split_forward(image, model):
+    """
+    对于验证集完整图像，需要滑动切块后分别进行预测，最后再拼接到一起
+
+    Args:
+        image: 验证集完整图像
+        model: 网络模型
+
+    Returns:
+
+    """
+    # 获取图像尺寸
+    ori_shape = image.size()[2:]
+    # 初始化输出的特征图
+    output = torch.zeros((image.size()[0], params["classes"], *ori_shape), device=image.device)
+    # 切片的大小
+    slice_shape = params["crop_size"]
+    # 在三个维度上滑动的步长
+    stride = params["crop_stride"]
+
+    # 在三个维度上进行滑动切片
+    for shape0_start in range(0, ori_shape[0], stride[0]):
+        shape0_end = shape0_start + slice_shape[0]
+        start0 = shape0_start
+        end0 = shape0_end
+        if shape0_end >= ori_shape[0]:
+            end0 = ori_shape[0]
+            start0 = end0 - slice_shape[0]
+
+        for shape1_start in range(0, ori_shape[1], stride[1]):
+            shape1_end = shape1_start + slice_shape[1]
+            start1 = shape1_start
+            end1 = shape1_end
+            if shape1_end >= ori_shape[1]:
+                end1 = ori_shape[1]
+                start1 = end1 - slice_shape[1]
+
+            for shape2_start in range(0, ori_shape[2], stride[2]):
+                shape2_end = shape2_start + slice_shape[2]
+                start2 = shape2_start
+                end2 = shape2_end
+                if shape2_end >= ori_shape[2]:
+                    end2 = ori_shape[2]
+                    start2 = end2 - slice_shape[2]
+
+                slice_tensor = image[:, :, start0:end0, start1:end1, start2:end2]
+                slice_predict = model(slice_tensor.to(image.device))
+                output[:, :, start0:end0, start1:end1, start2:end2] += slice_predict
+
+                if shape2_end >= ori_shape[2]:
+                    break
+
+            if shape1_end >= ori_shape[1]:
+                break
+
+        if shape0_end >= ori_shape[0]:
+            break
+
+    return output
+
 
 
 
@@ -318,6 +382,8 @@ if __name__ == '__main__':
     # # 更新参数
     # params.update(tuner_params)
 
+    params.update({"run_dir": r"./test"})
+
 
     # 设置可用GPU
     os.environ["CUDA_VISIBLE_DEVICES"] = params["CUDA_VISIBLE_DEVICES"]
@@ -328,6 +394,7 @@ if __name__ == '__main__':
     # 初始化数据集
     train_set = ToothDataset(mode="train")
     val_set = ToothDataset(mode="val")
+
 
     # 初始化数据加载器
     train_loader = DataLoader(train_set, batch_size=params["batch_size"], shuffle=True,
@@ -425,8 +492,13 @@ if __name__ == '__main__':
             f"{params['loss_function_name']}是不支持的损失函数！")
 
 
+    # 初始化在验证集上的最优DSC
+    val_best_dsc = 0.0
+
     # 开始训练
     for epoch in range(params["start_epoch"], params["end_epoch"] + 1):
+        # 初始化当前epoch所有训练集图像的loss总和
+        train_loss_sum_per_epoch = 0.0
 
         # 训练
         model.train()
@@ -440,33 +512,49 @@ if __name__ == '__main__':
             output =model(input_tensor)
             # 计算损失值
             dice_loss = loss_function(output, target)
+            # 将当前loss累加到loss总和
+            train_loss_sum_per_epoch += dice_loss.item() * input_tensor.size(0)
             # 反向传播计算各参数的梯度
             dice_loss.backward()
             # 更新参数
             optimizer.step()
 
+        # 计算当前epoch训练集图像的平均loss
+        train_loss_mean_per_epoch = train_loss_sum_per_epoch / len(train_set)
         # 更新学习率
         if isinstance(lr_scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+            lr_scheduler.step(train_loss_mean_per_epoch)
+        else:
             lr_scheduler.step()
 
 
-
+        # 初始化当前epoch所有验证集图像的dsc总和
+        val_dsc_sum_per_epoch = 0.0
 
         # 验证集测试
         model.eval()
         # 测试时不保存计算图的梯度中间结果，加快速度，节省空间
         with torch.no_grad():
             # 遍历验证集的batch，默认一个batch一张图像
-            for batch_idx, input_tuple in enumerate(val_loader):
+            for batch_idx, (input_tensor, target) in enumerate(val_loader):
+                # 将输入图像和标注图像都移动到指定设备上
+                input_tensor, target = input_tensor.to(device), target.to(device)
+                # 前向传播
+                output = split_forward(input_tensor, model)
+                # 计算每个类别的dsc
+                per_class_dsc = loss_function.dice(output, target, mode="standard")
+                # 将所有类别的dsc计算平均值，然后累加到dsc总和
+                val_dsc_sum_per_epoch += per_class_dsc.mean().item() * input_tensor.size(0)
 
-                    input_tensor, target = utils.prepare_input(input_tuple=input_tuple, device=self.device)
-                    input_tensor.requires_grad = False
+        # 计算当前epoch验证集图像的平均dsc
+        val_dsc_mean_per_epoch = val_dsc_sum_per_epoch / len(val_set)
+        # 向nni上报每个epoch验证集的平均dsc作为中间指标
+        nni.report_intermediate_result(val_dsc_mean_per_epoch)
+        # 更新在验证集上的最优dsc
+        val_best_dsc = max(val_best_dsc, val_dsc_mean_per_epoch)
 
-                    output = self.model(input_tensor)
-                    loss, per_ch_score = self.criterion(output, target)
+    # 将在验证集上最优的dsc作为最终上报指标
+    nni.report_final_result(val_best_dsc)
 
-                    self.writer.update_scores(batch_idx, loss.item(), per_ch_score, 'val',
-                                              epoch * self.per_epoch_total_step + batch_idx)
 
-            self.writer.display_terminal(epoch, mode='val', summary=True)
 
