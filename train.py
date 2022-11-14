@@ -42,7 +42,7 @@ params = {
     "clip_lower_bound": -3566,  # clip的下边界数值
     "clip_upper_bound": 14913,  # clip的上边界数值
 
-    "samples_train": 2048,  # 作为实际的训练集采样的子卷数量，也就是在原训练集上随机裁剪的子图像数量
+    "samples_train": 2046,  # 作为实际的训练集采样的子卷数量，也就是在原训练集上随机裁剪的子图像数量
 
     "crop_size": (160, 160, 96),  # 随机裁剪的尺寸。1、每个维度都是32的倍数这样在下采样时不会报错;2、11G的显存最大尺寸不能超过(192,192,160);
     # 3、要依据上面设置的"resample_spacing",在每个维度随机裁剪的尺寸不能超过图像重采样后的尺寸;
@@ -91,9 +91,9 @@ params = {
 
     "dataset_path": r"./datasets/src_10",  # 数据集路径
 
-    "batch_size": 1,  # batch_size大小
+    "batch_size": 6,  # batch_size大小
 
-    "num_workers": 1,  # num_workers大小
+    "num_workers": 4,  # num_workers大小
 
     # —————————————————————————————————————————————    网络模型     ——————————————————————————————————————————————————————
 
@@ -122,7 +122,7 @@ params = {
 
     "step_size": 5,  # StepLR的学习率衰减步长
 
-    "milestones": [15, 22, 27, 30, 33, 36, 38],  # MultiStepLR的学习率衰减节点列表
+    "milestones": [3, 5, 9, 13, 15, 17, 18, 19],  # MultiStepLR的学习率衰减节点列表
 
     "T_max": 5,  # CosineAnnealingLR的半周期
 
@@ -154,7 +154,7 @@ params = {
     "run_dir": r"./runs",  # 运行时产生的各类文件的存储根目录
 
     "start_epoch": 1,  # 训练时的起始epoch
-    "end_epoch": 40,  # 训练时的结束epoch
+    "end_epoch": 20,  # 训练时的结束epoch
 
     "best_dice": 0.60,  # 保存检查点的初始条件
 
