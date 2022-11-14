@@ -26,7 +26,7 @@ tuner:
 
 # 运行的命令，以及 Trial 代码的路径
 trial:
-  command: python train.py
+  command: python3 train.py
   codeDir: . #  必需字符串。 指定 Trial 文件的目录。
   gpuNum: 1 #  可选、整数。 指定了运行每个 Trial 进程的 GPU 数量。 默认值为 0。
 

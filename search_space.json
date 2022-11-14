@@ -21,7 +21,7 @@
     "random_rotate_min_angle": {"_type": "randint", "_value": [-180, 0]},
     "random_rotate_max_angle": {"_type": "randint", "_value": [1, 180]},
     "open_random_shift": {"_type": "choice", "_value": [true, false]},
-    "random_shift_max_percentage": {"_type": "loguniform", "_value": [0, 1]},
+    "random_shift_max_percentage": {"_type": "loguniform", "_value": [0.01, 1]},
     "normalize_mean": {"_type": "uniform", "_value": [0, 0.5]},
     "normalize_std": {"_type": "uniform", "_value": [0.01, 0.5]},
 

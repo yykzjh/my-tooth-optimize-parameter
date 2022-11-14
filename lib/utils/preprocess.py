@@ -79,7 +79,7 @@ def create_sub_volumes(images_path_list, labels_path_list, samples_train, resamp
                 break
 
         # 定义子卷原图像和标注图像的公共前缀名
-        filename = 'id_' + str(i) + '-src_id_' + str(random_index)
+        filename = 'id_' + str(i).zfill(4) + '-src_id_' + str(random_index).zfill(3)
         # 存储子卷原图像
         image_filename = filename + ".npy"
         image_path = os.path.join(sub_volume_dir, "images", image_filename)

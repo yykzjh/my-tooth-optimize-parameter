@@ -56,7 +56,7 @@ def compute_per_channel_dice(input, target, epsilon=1e-6, mode="extension"):
         denominator = input.sum(-1) + target.sum(-1)
 
     # 返回最终计算得到的DSC,(C, )
-    return 2 * (intersect / denominator.clamp(min=epsilon))
+    return (2 * intersect + epsilon) / (denominator + epsilon)
 
 
 def flatten(tensor):
