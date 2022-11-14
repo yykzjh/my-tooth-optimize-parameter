@@ -298,20 +298,6 @@ class ToothDataset(Dataset):
 
 
 
-def weight_init(m):
-    if isinstance(m, nn.Linear):
-        nn.init.xavier_normal_(m.weight)
-        nn.init.constant_(m.bias, 0)
-    elif isinstance(m, nn.Conv3d):
-        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-        nn.init.constant_(m.bias, 0)
-    elif isinstance(m, (nn.BatchNorm3d, nn.GroupNorm)):
-        nn.init.constant_(m.weight, 1)
-        nn.init.constant_(m.bias, 0)
-
-
-
-
 def split_forward(image, model):
     """
     对于验证集完整图像，需要滑动切块后分别进行预测，最后再拼接到一起
@@ -410,7 +396,7 @@ if __name__ == '__main__':
         raise RuntimeError(f"{params['model_name']}是不支持的网络模型！")
 
     # 随机初始化模型参数
-    model.apply(weight_init)
+    utils.init_weights(model, init_type="kaiming")
 
 
     # 初始化优化器
