@@ -34,6 +34,6 @@ trial:
 localConfig:
   gpuIndices: 0 # 默认值none。设置后，只有指定的 GPU 会被用来运行 Trial 任务。
   # ! 和CUDA_VISIBLE_DEVICE=0,3 的效果相同，在程序内部的gpu编号依旧是从0开始的
-  maxTrialNumPerGpu: 1 #  默认值1。指定1个GPU上最大并发trail的数量
-  useActiveGpu: false #  默认值false。是否使用已经被其他进程使用的gpu。
+  maxTrialNumPerGpu: 3 #  默认值1。指定1个GPU上最大并发trail的数量
+  useActiveGpu: true #  默认值false。是否使用已经被其他进程使用的gpu。
 
