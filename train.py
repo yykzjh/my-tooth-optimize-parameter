@@ -395,6 +395,15 @@ if __name__ == '__main__':
     else:
         raise RuntimeError(f"{params['model_name']}是不支持的网络模型！")
 
+    # 获取GPU设备
+    if params["cuda"]:
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device("cpu")
+
+    # 把模型放到GPU上
+    model = model.to(device)
+
     # 随机初始化模型参数
     utils.init_weights(model, init_type="kaiming")
 
@@ -452,14 +461,6 @@ if __name__ == '__main__':
     else:
         raise RuntimeError(
             f"{params['lr_scheduler_name']}是不支持的学习率调度器！")
-
-
-    # 把模型放到GPU上
-    if params["cuda"]:
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        model = model.to(device)
-    else:
-        device = torch.device("cpu")
 
 
     # 初始化损失函数

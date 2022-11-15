@@ -10,47 +10,63 @@ import torch.nn as nn
 
 
 
+def weight_init(m):
+    if isinstance(m, nn.Linear):
+        nn.init.xavier_normal_(m.weight)
+        nn.init.constant_(m.bias, 0)
+    elif isinstance(m, nn.Conv3d):
+        nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        nn.init.constant_(m.bias, 0)
+    elif isinstance(m, (nn.BatchNorm3d, nn.GroupNorm, nn.InstanceNorm3d)):
+        nn.init.constant_(m.weight, 1)
+        nn.init.constant_(m.bias, 0)
+
+
+
 def weights_init_normal(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
+    if isinstance(m, nn.Linear):
         nn.init.normal(m.weight.data, 0.0, 0.02)
-    elif classname.find('Linear') != -1:
+        nn.init.constant(m.bias.data, 0)
+    elif isinstance(m, nn.Conv3d):
         nn.init.normal(m.weight.data, 0.0, 0.02)
-    elif classname.find('Norm') != -1:
+        nn.init.constant(m.bias.data, 0)
+    elif isinstance(m, (nn.BatchNorm3d, nn.GroupNorm, nn.InstanceNorm3d)):
         nn.init.normal(m.weight.data, 1.0, 0.02)
         nn.init.constant(m.bias.data, 0.0)
 
 
 def weights_init_xavier(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
+    if isinstance(m, nn.Linear):
         nn.init.xavier_normal(m.weight.data, gain=1)
-    elif classname.find('Linear') != -1:
+        nn.init.constant(m.bias.data, 0)
+    elif isinstance(m, nn.Conv3d):
         nn.init.xavier_normal(m.weight.data, gain=1)
-    elif classname.find('Norm') != -1:
+        nn.init.constant(m.bias.data, 0)
+    elif isinstance(m, (nn.BatchNorm3d, nn.GroupNorm, nn.InstanceNorm3d)):
         nn.init.normal(m.weight.data, 1.0, 0.02)
         nn.init.constant(m.bias.data, 0.0)
 
 
 def weights_init_kaiming(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
+    if isinstance(m, nn.Linear):
         nn.init.kaiming_normal(m.weight.data, a=0, mode='fan_in')
-    elif classname.find('Linear') != -1:
+        nn.init.constant(m.bias.data, 0)
+    elif isinstance(m, nn.Conv3d):
         nn.init.kaiming_normal(m.weight.data, a=0, mode='fan_in')
-    elif classname.find('Norm') != -1:
+        nn.init.constant(m.bias.data, 0)
+    elif isinstance(m, (nn.BatchNorm3d, nn.GroupNorm, nn.InstanceNorm3d)):
         nn.init.normal(m.weight.data, 1.0, 0.02)
         nn.init.constant(m.bias.data, 0.0)
 
 
 def weights_init_orthogonal(m):
-    classname = m.__class__.__name__
-    #print(classname)
-    if classname.find('Conv') != -1:
+    if isinstance(m, nn.Linear):
         nn.init.orthogonal(m.weight.data, gain=1)
-    elif classname.find('Linear') != -1:
+        nn.init.constant(m.bias.data, 0)
+    elif isinstance(m, nn.Conv3d):
         nn.init.orthogonal(m.weight.data, gain=1)
-    elif classname.find('Norm') != -1:
+        nn.init.constant(m.bias.data, 0)
+    elif isinstance(m, (nn.BatchNorm3d, nn.GroupNorm, nn.InstanceNorm3d)):
         nn.init.normal(m.weight.data, 1.0, 0.02)
         nn.init.constant(m.bias.data, 0.0)
 
