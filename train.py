@@ -543,8 +543,5 @@ if __name__ == '__main__':
     # 将在验证集上最优的dsc作为最终上报指标
     nni.report_final_result(val_best_dsc)
 
-    # 实验结束后，防止程序避免Python解释器自动退出，可以继续使用网页控制台
-    input()
-
 
 
