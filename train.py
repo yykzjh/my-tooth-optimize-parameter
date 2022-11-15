@@ -105,7 +105,7 @@ params = {
 
     # ——————————————————————————————————————————————    优化器     ——————————————————————————————————————————————————————
 
-    "optimizer_name": "Adam",  # 优化器名称，可选["SGD", "Adagrad", "RMSprop", "Adam", "Adamax", "Adadelta", "SparseAdam"]
+    "optimizer_name": "Adam",  # 优化器名称，可选["SGD", "Adagrad", "RMSprop", "Adam", "Adamax", "Adadelta"]
 
     "learning_rate": 0.001,  # 学习率
 
@@ -419,9 +419,6 @@ if __name__ == '__main__':
 
     elif params["optimizer_name"] == "Adadelta":
         optimizer = optim.Adadelta(model.parameters(), lr=params["learning_rate"], weight_decay=params["weight_decay"])
-
-    elif params["optimizer_name"] == "SparseAdam":
-        optimizer = optim.SparseAdam(model.parameters(), lr=params["learning_rate"])
 
     else:
         raise RuntimeError(
